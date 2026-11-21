@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>音声文字起こし</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f2f3f1;
+        --ink: #111410;
+        --muted: #8a8f88;
+        --line: #d9dcd6;
+        --accent: #0a7d4f;
+        --accent-ink: #ffffff;
+        --paused: #b3540a;
+        --btn-bg: #eef0ec;
+        --btn-ink: #111410;
+        --resp-bg: #111410;
+        --resp-ink: #ffffff;
+        --banner-bg: #0a7d4f;
+        --banner-ink: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #101210;
+          --surface: #1a1d1a;
+          --ink: #f4f5f2;
+          --muted: #6f746d;
+          --line: #333733;
+          --accent: #2fae72;
+          --accent-ink: #08130d;
+          --paused: #e08a3c;
+          --btn-bg: #232723;
+          --btn-ink: #f4f5f2;
+          --resp-bg: #f4f5f2;
+          --resp-ink: #101210;
+          --banner-bg: #2fae72;
+          --banner-ink: #08130d;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Noto Sans JP", sans-serif;
+        -webkit-text-size-adjust: 100%;
+        overflow: hidden;
+      }
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      button:focus-visible { outline: 4px solid var(--accent); outline-offset: 2px; }
+      button:disabled { opacity: .45; cursor: default; }
+
+      .app {
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        padding: max(14px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+        gap: 12px;
+      }
+
+      /* 上段 */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: clamp(22px, 3.4vmin, 34px);
+        font-weight: 800;
+        letter-spacing: .02em;
+        min-height: 48px;
+      }
+      .dot {
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        background: var(--paused);
+        flex: none;
+      }
+      .dot.on {
+        background: var(--accent);
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(10,125,79,.35); }
+        50% { box-shadow: 0 0 0 10px rgba(10,125,79,0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .dot.on { animation: none; }
+      }
+      .font-controls { display: flex; gap: 10px; }
+      .font-btn {
+        min-height: 56px;
+        padding: 10px 22px;
+        font-size: clamp(19px, 2.8vmin, 26px);
+        font-weight: 700;
+        background: var(--btn-bg);
+        color: var(--btn-ink);
+        border: 2px solid var(--line);
+        border-radius: 12px;
+      }
+      .font-btn:active { transform: scale(.97); }
+
+      .toggle {
+        width: 100%;
+        min-height: 76px;
+        padding: 14px 20px;
+        font-size: clamp(26px, 4.2vmin, 40px);
+        font-weight: 800;
+        letter-spacing: .04em;
+        border-radius: 14px;
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+      .toggle.paused-state { background: var(--paused); color: #fff; }
+      @media (prefers-color-scheme: dark) {
+        .toggle.paused-state { color: #160d04; }
+      }
+      .toggle:active { transform: scale(.99); }
+
+      /* 中央 */
+      .stage {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--surface);
+        border-radius: 16px;
+        padding: 20px 28px;
+        overflow: hidden;
+      }
+      .sentence {
+        margin: 0;
+        width: 100%;
+        text-align: center;
+        font-weight: 800;
+        line-height: 1.35;
+        letter-spacing: .01em;
+        word-break: normal;
+        overflow-wrap: break-word;
+      }
+      .sentence .interim { color: var(--muted); }
+      .sentence.placeholder { color: var(--muted); }
+
+      /* 下段：応答ボタン */
+      .responses {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+      .resp-btn {
+        min-height: 84px;
+        padding: 14px 8px;
+        font-size: clamp(24px, 3.8vmin, 38px);
+        font-weight: 800;
+        letter-spacing: .03em;
+        background: var(--resp-bg);
+        color: var(--resp-ink);
+        border-radius: 14px;
+      }
+      .resp-btn:active { transform: scale(.97); }
+
+      /* 応答バナー */
+      .banner {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: var(--banner-bg);
+        color: var(--banner-ink);
+        padding: 24px;
+        cursor: pointer;
+      }
+      .banner.show { display: flex; }
+      .banner-text {
+        font-size: clamp(64px, 17vmin, 190px);
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-align: center;
+        line-height: 1.2;
+      }
+
+      @media (max-width: 640px) {
+        .responses { grid-template-columns: repeat(2, 1fr); }
+        .resp-btn { min-height: 72px; }
+        .toggle { min-height: 68px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="topbar">
+        <div class="status" role="status" aria-live="polite">
+          <span class="dot" id="dot"></span>
+          <span id="statusText">一時停止中</span>
+        </div>
+        <div class="font-controls">
+          <button type="button" class="font-btn" id="fontDown">文字 小</button>
+          <button type="button" class="font-btn" id="fontUp">文字 大</button>
+        </div>
+      </div>
+
+      <button type="button" class="toggle paused-state" id="toggleBtn">開始する</button>
+
+      <main class="stage" id="stage">
+        <p class="sentence placeholder" id="sentence">話しかけてください</p>
+      </main>
+
+      <div class="responses">
+        <button type="button" class="resp-btn" data-resp="わかった">わかった</button>
+        <button type="button" class="resp-btn" data-resp="もう一度">もう一度</button>
+        <button type="button" class="resp-btn" data-resp="はい">はい</button>
+        <button type="button" class="resp-btn" data-resp="いいえ">いいえ</button>
+      </div>
+    </div>
+
+    <div class="banner" id="banner" role="alert">
+      <div class="banner-text" id="bannerText"></div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        var dot = document.getElementById('dot');
+        var statusText = document.getElementById('statusText');
+        var toggleBtn = document.getElementById('toggleBtn');
+        var stage = document.getElementById('stage');
+        var sentenceEl = document.getElementById('sentence');
+        var banner = document.getElementById('banner');
+        var bannerText = document.getElementById('bannerText');
+
+        var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        var supported = typeof SR === 'function';
+
+        var userPaused = true;      // ユーザーが止めている間は自動再開しない
+        var startedOnce = false;
+        var recognition = null;
+        var running = false;        // 認識セッションが生きているか
+        var restartTimer = null;
+        var wakeLock = null;
+
+        var latestFinal = '';       // 最新の確定した一文
+        var currentInterim = '';    // 認識途中の文
+
+        /* ---------- 文字サイズ ---------- */
+        var LEVELS = [56, 72, 88, 106, 126];
+        var levelIdx = 2; // 初期値から大きく
+
+        function fitText() {
+          var size = LEVELS[levelIdx];
+          var maxH = stage.clientHeight - 40;
+          var maxW = stage.clientWidth - 56;
+          sentenceEl.style.fontSize = size + 'px';
+          var guard = 0;
+          while (size > 26 && guard < 60 &&
+                 (sentenceEl.scrollHeight > maxH || sentenceEl.scrollWidth > maxW)) {
+            size -= 4;
+            sentenceEl.style.fontSize = size + 'px';
+            guard++;
+          }
+        }
+
+        document.getElementById('fontUp').addEventListener('click', function () {
+          if (levelIdx < LEVELS.length - 1) { levelIdx++; fitText(); }
+        });
+        document.getElementById('fontDown').addEventListener('click', function () {
+          if (levelIdx > 0) { levelIdx--; fitText(); }
+        });
+        window.addEventListener('resize', fitText);
+
+        /* ---------- 表示 ---------- */
+        function render() {
+          sentenceEl.classList.remove('placeholder');
+          if (currentInterim) {
+            sentenceEl.innerHTML = '';
+            var span = document.createElement('span');
+            span.className = 'interim';
+            span.textContent = currentInterim;
+            sentenceEl.appendChild(span);
+          } else if (latestFinal) {
+            sentenceEl.textContent = latestFinal;
+          }
+          fitText();
+        }
+
+        function showMessage(text) {
+          latestFinal = '';
+          currentInterim = '';
+          sentenceEl.classList.remove('placeholder');
+          sentenceEl.textContent = text;
+          fitText();
+        }
+
+        /* ---------- 状態表示 ---------- */
+        function setStatus(listening) {
+          if (listening) {
+            dot.classList.add('on');
+            statusText.textContent = '聞き取り中';
+            toggleBtn.textContent = '一時停止';
+            toggleBtn.classList.remove('paused-state');
+          } else {
+            dot.classList.remove('on');
+            statusText.textContent = '一時停止中';
+            toggleBtn.textContent = startedOnce ? '再開する' : '開始する';
+            toggleBtn.classList.add('paused-state');
+          }
+        }
+
+        /* ---------- Wake Lock ---------- */
+        function requestWakeLock() {
+          if (!('wakeLock' in navigator)) return;
+          navigator.wakeLock.request('screen').then(function (lock) {
+            wakeLock = lock;
+          }).catch(function () { /* 取得できなくても動作は続ける */ });
+        }
+        function releaseWakeLock() {
+          if (wakeLock) {
+            wakeLock.release().catch(function () {});
+            wakeLock = null;
+          }
+        }
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'visible' && !userPaused) requestWakeLock();
+        });
+
+        /* ---------- 音声認識 ---------- */
+        function buildRecognition() {
+          var rec = new SR();
+          rec.lang = 'ja-JP';
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.maxAlternatives = 1;
+
+          rec.onresult = function (event) {
+            var interim = '';
+            for (var i = event.resultIndex; i < event.results.length; i++) {
+              var result = event.results[i];
+              if (result.isFinal) {
+                var text = result[0].transcript.trim();
+                if (text) latestFinal = text;
+                interim = '';
+              } else {
+                interim += result[0].transcript;
+              }
+            }
+            currentInterim = interim.trim();
+            render();
+          };
+
+          rec.onend = function () {
+            running = false;
+            // ブラウザ都合で終わったら、止められていない限り自動で再開
+            if (!userPaused) {
+              restartTimer = setTimeout(function () {
+                if (!userPaused) startRecognition();
+              }, 350);
+            }
+          };
+
+          rec.onerror = function (event) {
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+              userPaused = true;
+              running = false;
+              setStatus(false);
+              releaseWakeLock();
+              showMessage('マイクが使えません。ブラウザのマイク許可を確認してください');
+            }
+            // それ以外のエラーは onend 側の自動再開に任せる
+          };
+
+          return rec;
+        }
+
+        function startRecognition() {
+          if (!supported || running) return;
+          if (!recognition) recognition = buildRecognition();
+          try {
+            recognition.start();
+            running = true;
+          } catch (e) {
+            // すでに開始済みなどの場合は次の onend で再開される
+          }
+        }
+
+        function stopRecognition() {
+          if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+          if (recognition && running) {
+            try { recognition.stop(); } catch (e) {}
+          }
+          running = false;
+        }
+
+        toggleBtn.addEventListener('click', function () {
+          if (!supported) return;
+          if (userPaused) {
+            userPaused = false;
+            startedOnce = true;
+            setStatus(true);
+            requestWakeLock();
+            startRecognition();
+          } else {
+            userPaused = true;
+            setStatus(false);
+            releaseWakeLock();
+            stopRecognition();
+            // 表示中の一文はそのまま固定する
+          }
+        });
+
+        /* ---------- 応答ボタン ---------- */
+        var bannerTimer = null;
+        function hideBanner() {
+          banner.classList.remove('show');
+          if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
+        }
+        var respBtns = document.querySelectorAll('.resp-btn');
+        for (var b = 0; b < respBtns.length; b++) {
+          respBtns[b].addEventListener('click', function () {
+            bannerText.textContent = this.getAttribute('data-resp');
+            banner.classList.add('show');
+            if (bannerTimer) clearTimeout(bannerTimer);
+            bannerTimer = setTimeout(hideBanner, 5000);
+          });
+        }
+        banner.addEventListener('click', hideBanner);
+
+        /* ---------- 初期化 ---------- */
+        if (!supported) {
+          toggleBtn.disabled = true;
+          showMessage('このブラウザは音声認識に対応していません');
+        }
+        setStatus(false);
+        fitText();
+      })();
+    </script>
+  </body>
+</html>
