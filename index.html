@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <link rel="icon" href="data:," />
     <title>音声文字起こし</title>
     <style>
@@ -12,34 +12,12 @@
         --surface: #f2f3f1;
         --ink: #111410;
         --muted: #8a8f88;
-        --line: #d9dcd6;
-        --accent: #0a7d4f;
-        --accent-ink: #ffffff;
-        --paused: #b3540a;
+        --line: #cfd3cc;
+        --dot-on: #84d400;
         --btn-bg: #eef0ec;
         --btn-ink: #111410;
-        --resp-bg: #111410;
-        --resp-ink: #ffffff;
         --banner-bg: #0a7d4f;
         --banner-ink: #ffffff;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #101210;
-          --surface: #1a1d1a;
-          --ink: #f4f5f2;
-          --muted: #6f746d;
-          --line: #333733;
-          --accent: #2fae72;
-          --accent-ink: #08130d;
-          --paused: #e08a3c;
-          --btn-bg: #232723;
-          --btn-ink: #f4f5f2;
-          --resp-bg: #f4f5f2;
-          --resp-ink: #101210;
-          --banner-bg: #2fae72;
-          --banner-ink: #08130d;
-        }
       }
       * { box-sizing: border-box; }
       html, body { height: 100%; }
@@ -58,14 +36,14 @@
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
       }
-      button:focus-visible { outline: 4px solid var(--accent); outline-offset: 2px; }
+      button:focus-visible { outline: 4px solid #0a7d4f; outline-offset: 2px; }
       button:disabled { opacity: .45; cursor: default; }
 
       .app {
         height: 100dvh;
         display: flex;
         flex-direction: column;
-        padding: max(14px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+        padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
         gap: 12px;
       }
 
@@ -74,41 +52,36 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-      .status {
-        display: flex;
-        align-items: center;
         gap: 12px;
-        font-size: clamp(22px, 3.4vmin, 34px);
-        font-weight: 800;
-        letter-spacing: .02em;
-        min-height: 48px;
+        min-height: 58px;
       }
       .dot {
-        width: 22px; height: 22px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
-        background: var(--paused);
+        background: #ffffff;
         flex: none;
       }
       .dot.on {
-        background: var(--accent);
+        background: var(--dot-on);
         animation: pulse 1.6s ease-in-out infinite;
       }
       @keyframes pulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(10,125,79,.35); }
-        50% { box-shadow: 0 0 0 10px rgba(10,125,79,0); }
+        0%, 100% { box-shadow: 0 0 0 0 rgba(132, 212, 0, .4); }
+        50% { box-shadow: 0 0 0 12px rgba(132, 212, 0, 0); }
       }
       @media (prefers-reduced-motion: reduce) {
         .dot.on { animation: none; }
       }
-      .font-controls { display: flex; gap: 10px; }
+      .font-controls {
+        display: flex;
+        gap: 10px;
+      }
       .font-btn {
-        min-height: 60px;
-        min-width: 108px;
-        padding: 10px 26px;
-        font-size: clamp(20px, 3vmin, 28px);
+        min-height: 56px;
+        min-width: 112px;
+        padding: 10px 24px;
+        font-size: clamp(20px, 3vmin, 26px);
         font-weight: 800;
         background: var(--btn-bg);
         color: var(--btn-ink);
@@ -117,30 +90,7 @@
       }
       .font-btn:active { transform: scale(.97); }
 
-      .top-left {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-      .toggle {
-        min-height: 60px;
-        min-width: 132px;
-        padding: 10px 28px;
-        font-size: clamp(20px, 3vmin, 28px);
-        font-weight: 800;
-        letter-spacing: .03em;
-        border-radius: 12px;
-        background: var(--accent);
-        color: var(--accent-ink);
-      }
-      .toggle.paused-state { background: var(--paused); color: #fff; }
-      @media (prefers-color-scheme: dark) {
-        .toggle.paused-state { color: #160d04; }
-      }
-      .toggle:active { transform: scale(.99); }
-
-      /* 中央 */
+      /* 中央ステージ（タップで開始／一時停止） */
       .stage {
         flex: 1 1 auto;
         min-height: 0;
@@ -151,6 +101,20 @@
         border-radius: 16px;
         padding: 20px 28px;
         overflow: hidden;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .tap-box {
+        background: #ffffff;
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 34px 48px;
+        width: min(82%, 720px);
+        text-align: center;
+        font-size: clamp(28px, 4.6vmin, 42px);
+        font-weight: 500;
+        letter-spacing: .04em;
       }
       .sentence {
         margin: 0;
@@ -165,21 +129,21 @@
       .sentence .interim { color: var(--muted); }
       .sentence.placeholder { color: var(--muted); }
 
-      /* 下段：応答ボタン */
+      /* 下段：応答ボタン（白背景・文字大） */
       .responses {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 12px;
       }
       .resp-btn {
-        min-height: 94px;
+        min-height: 92px;
         padding: 14px 8px;
         font-size: clamp(28px, 4.8vmin, 46px);
         font-weight: 900;
         letter-spacing: .03em;
         background: #ffffff;
         color: #111410;
-        border: 2px solid #c6cbc2;
+        border: 2px solid var(--line);
         border-radius: 14px;
       }
       .resp-btn:active { transform: scale(.97); }
@@ -208,29 +172,25 @@
 
       @media (max-width: 640px) {
         .responses { grid-template-columns: repeat(2, 1fr); }
-        .resp-btn { min-height: 82px; }
-        .toggle { min-height: 54px; min-width: 112px; padding: 8px 20px; }
+        .resp-btn { min-height: 80px; }
+        .font-btn { min-height: 50px; min-width: 92px; padding: 8px 16px; }
+        .tap-box { padding: 26px 20px; width: 92%; }
       }
     </style>
   </head>
   <body>
     <div class="app">
       <div class="topbar">
-        <div class="top-left">
-          <div class="status" role="status" aria-live="polite">
-            <span class="dot" id="dot"></span>
-            <span id="statusText">一時停止中</span>
-          </div>
-          <button type="button" class="toggle paused-state" id="toggleBtn">開始する</button>
-        </div>
+        <span class="dot" id="dot" aria-label="状態"></span>
         <div class="font-controls">
           <button type="button" class="font-btn" id="fontDown">文字 小</button>
           <button type="button" class="font-btn" id="fontUp">文字 大</button>
         </div>
       </div>
 
-      <main class="stage" id="stage">
-        <p class="sentence placeholder" id="sentence">話しかけてください</p>
+      <main class="stage" id="stage" role="button" tabindex="0" aria-label="音声認識の開始と一時停止">
+        <div class="tap-box" id="tapBox">ここをタップ</div>
+        <p class="sentence placeholder" id="sentence" style="display:none;">話しかけてください</p>
       </main>
 
       <div class="responses">
@@ -250,9 +210,8 @@
         'use strict';
 
         var dot = document.getElementById('dot');
-        var statusText = document.getElementById('statusText');
-        var toggleBtn = document.getElementById('toggleBtn');
         var stage = document.getElementById('stage');
+        var tapBox = document.getElementById('tapBox');
         var sentenceEl = document.getElementById('sentence');
         var banner = document.getElementById('banner');
         var bannerText = document.getElementById('bannerText');
@@ -260,21 +219,22 @@
         var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         var supported = typeof SR === 'function';
 
-        var userPaused = true;      // ユーザーが止めている間は自動再開しない
-        var startedOnce = false;
+        var userPaused = true;
         var recognition = null;
-        var running = false;        // 認識セッションが生きているか
+        var running = false;
         var restartTimer = null;
         var wakeLock = null;
+        var startedAtMs = 0;
 
-        var latestFinal = '';       // 最新の確定した一文
-        var currentInterim = '';    // 認識途中の文
+        var latestFinal = '';
+        var currentInterim = '';
 
         /* ---------- 文字サイズ ---------- */
         var LEVELS = [56, 72, 88, 106, 126];
-        var levelIdx = 2; // 初期値から大きく
+        var levelIdx = 2;
 
         function fitText() {
+          if (sentenceEl.style.display === 'none') return;
           var size = LEVELS[levelIdx];
           var maxH = stage.clientHeight - 40;
           var maxW = stage.clientWidth - 56;
@@ -307,6 +267,9 @@
             sentenceEl.appendChild(span);
           } else if (latestFinal) {
             sentenceEl.textContent = latestFinal;
+          } else {
+            sentenceEl.classList.add('placeholder');
+            sentenceEl.textContent = '話しかけてください';
           }
           fitText();
         }
@@ -314,23 +277,23 @@
         function showMessage(text) {
           latestFinal = '';
           currentInterim = '';
+          tapBox.style.display = 'none';
+          sentenceEl.style.display = 'block';
           sentenceEl.classList.remove('placeholder');
           sentenceEl.textContent = text;
           fitText();
         }
 
-        /* ---------- 状態表示 ---------- */
-        function setStatus(listening) {
+        function setListeningUi(listening) {
           if (listening) {
             dot.classList.add('on');
-            statusText.textContent = '聞き取り中';
-            toggleBtn.textContent = '一時停止';
-            toggleBtn.classList.remove('paused-state');
+            tapBox.style.display = 'none';
+            sentenceEl.style.display = 'block';
+            render();
           } else {
             dot.classList.remove('on');
-            statusText.textContent = '一時停止中';
-            toggleBtn.textContent = startedOnce ? '再開する' : '開始する';
-            toggleBtn.classList.add('paused-state');
+            sentenceEl.style.display = 'none';
+            tapBox.style.display = 'block';
           }
         }
 
@@ -339,7 +302,7 @@
           if (!('wakeLock' in navigator)) return;
           navigator.wakeLock.request('screen').then(function (lock) {
             wakeLock = lock;
-          }).catch(function () { /* 取得できなくても動作は続ける */ });
+          }).catch(function () {});
         }
         function releaseWakeLock() {
           if (wakeLock) {
@@ -347,38 +310,25 @@
             wakeLock = null;
           }
         }
-        function autoPauseForLeave() {
+
+        function pauseForLeave() {
           if (!userPaused || running || recognition) {
             userPaused = true;
-            setStatus(false);
+            setListeningUi(false);
             releaseWakeLock();
             stopRecognition();
           }
         }
         document.addEventListener('visibilitychange', function () {
-          if (document.visibilityState === 'hidden') {
-            autoPauseForLeave();
+          // マイク許可ダイアログ直後の誤爆を防ぐため開始1.5秒以降のみ自動停止
+          if (document.visibilityState === 'hidden' && !userPaused && (Date.now() - startedAtMs > 1500)) {
+            pauseForLeave();
           }
         });
-        window.addEventListener('pagehide', autoPauseForLeave);
-        window.addEventListener('beforeunload', autoPauseForLeave);
+        window.addEventListener('pagehide', pauseForLeave);
+        window.addEventListener('beforeunload', pauseForLeave);
 
-        /* ---------- 音声認識（Safari対策版） ---------- */
-        var micPrimed = false;
-
-        function ensureMicPermission() {
-          if (micPrimed) return Promise.resolve(true);
-          if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
-            return Promise.resolve(true);
-          }
-          return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-            micPrimed = true;
-            var tracks = stream.getTracks();
-            for (var i = 0; i < tracks.length; i++) tracks[i].stop();
-            return true;
-          });
-        }
-
+        /* ---------- 音声認識 ---------- */
         function buildRecognition() {
           var rec = new SR();
           rec.lang = 'ja-JP';
@@ -389,7 +339,6 @@
           rec.onstart = function () {
             if (rec !== recognition) return;
             running = true;
-            if (!userPaused) statusText.textContent = '聞き取り中';
           };
 
           rec.onresult = function (event) {
@@ -426,25 +375,19 @@
             if (err === 'not-allowed' || err === 'service-not-allowed') {
               userPaused = true;
               running = false;
-              setStatus(false);
+              dot.classList.remove('on');
               releaseWakeLock();
               if (err === 'service-not-allowed') {
-                showMessage('音声認識が許可されていません（iPhone/iPadは「設定→一般→キーボード→音声入力」をオン、Safari→マイクを許可にしてください）');
+                showMessage('音声認識が許可されていません（iPad/iPhoneは「設定→一般→キーボード→音声入力」をオン、Safari→マイクを許可にしてください）');
               } else {
                 showMessage('マイクが使えません（Safariのマイク許可を確認してください）');
               }
-              statusText.textContent = '停止: ' + err;
             } else if (err === 'audio-capture') {
               userPaused = true;
               running = false;
-              setStatus(false);
+              dot.classList.remove('on');
               releaseWakeLock();
-              showMessage('マイク入力を取得できませんでした（他アプリが使用中か権限を確認してください）');
-              statusText.textContent = '停止: ' + err;
-            } else if (err === 'network') {
-              statusText.textContent = '通信再接続中... (network)';
-            } else if (err !== 'no-speech' && err !== 'aborted') {
-              statusText.textContent = '再試行中: ' + err;
+              showMessage('マイク入力を取得できませんでした');
             }
           };
 
@@ -458,7 +401,7 @@
             var old = recognition;
             recognition = null;
             old.onstart = old.onresult = old.onend = old.onerror = null;
-            try { old.abort(); } catch (e) {}
+            try { old.stop(); } catch (e) {}
           }
           var rec = buildRecognition();
           recognition = rec;
@@ -470,7 +413,7 @@
             if (recognition === rec) recognition = null;
             restartTimer = setTimeout(function () {
               if (!userPaused) startRecognition();
-            }, 250);
+            }, 350);
           }
         }
 
@@ -480,41 +423,32 @@
             var old = recognition;
             recognition = null;
             old.onstart = old.onresult = old.onend = old.onerror = null;
-            try { old.abort(); } catch (e) {
-              try { old.stop(); } catch (e2) {}
-            }
+            try { old.stop(); } catch (e) {}
           }
           running = false;
         }
 
-        toggleBtn.addEventListener('click', function () {
+        function toggleListening() {
           if (!supported) return;
           if (userPaused) {
             userPaused = false;
-            startedOnce = true;
-            setStatus(true);
+            startedAtMs = Date.now();
+            setListeningUi(true);
             requestWakeLock();
-            if (micPrimed || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
-              startRecognition();
-            } else {
-              statusText.textContent = 'マイク確認中...';
-              ensureMicPermission().then(function () {
-                if (!userPaused) startRecognition();
-              }).catch(function (err) {
-                userPaused = true;
-                running = false;
-                setStatus(false);
-                releaseWakeLock();
-                var name = err && err.name ? err.name : 'PermissionError';
-                showMessage('マイク許可に失敗しました（' + name + '）。Safariのマイク設定を確認してください');
-                statusText.textContent = 'マイク拒否: ' + name;
-              });
-            }
+            startRecognition();
           } else {
             userPaused = true;
-            setStatus(false);
+            setListeningUi(false);
             releaseWakeLock();
             stopRecognition();
+          }
+        }
+
+        stage.addEventListener('click', toggleListening);
+        stage.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleListening();
           }
         });
 
@@ -537,11 +471,8 @@
 
         /* ---------- 初期化 ---------- */
         if (!supported) {
-          toggleBtn.disabled = true;
           showMessage('このブラウザは音声認識に対応していません');
         }
-        setStatus(false);
-        fitText();
       })();
     </script>
   </body>
