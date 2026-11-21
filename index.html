@@ -342,13 +342,33 @@
           if (document.visibilityState === 'visible' && !userPaused) requestWakeLock();
         });
 
-        /* ---------- 音声認識 ---------- */
+        /* ---------- 音声認識（Safari対策版） ---------- */
+        var micPrimed = false;
+
+        function ensureMicPermission() {
+          if (micPrimed) return Promise.resolve(true);
+          if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+            return Promise.resolve(true);
+          }
+          return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+            micPrimed = true;
+            var tracks = stream.getTracks();
+            for (var i = 0; i < tracks.length; i++) tracks[i].stop();
+            return true;
+          });
+        }
+
         function buildRecognition() {
           var rec = new SR();
           rec.lang = 'ja-JP';
           rec.continuous = true;
           rec.interimResults = true;
           rec.maxAlternatives = 1;
+
+          rec.onstart = function () {
+            running = true;
+            if (!userPaused) statusText.textContent = '聞き取り中';
+          };
 
           rec.onresult = function (event) {
             var interim = '';
@@ -368,23 +388,39 @@
 
           rec.onend = function () {
             running = false;
-            // ブラウザ都合で終わったら、止められていない限り自動で再開
+            recognition = null; // Safariでのインスタンス再利用失敗を防ぐため毎回破棄
             if (!userPaused) {
               restartTimer = setTimeout(function () {
                 if (!userPaused) startRecognition();
-              }, 350);
+              }, 300);
             }
           };
 
           rec.onerror = function (event) {
-            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            var err = event && event.error ? event.error : 'unknown';
+            if (err === 'not-allowed' || err === 'service-not-allowed') {
               userPaused = true;
               running = false;
               setStatus(false);
               releaseWakeLock();
-              showMessage('マイクが使えません。ブラウザのマイク許可を確認してください');
+              if (err === 'service-not-allowed') {
+                showMessage('音声認識が許可されていません（iPhone/iPadは「設定→一般→キーボード→音声入力」をオン、Safari→マイクを許可にしてください）');
+              } else {
+                showMessage('マイクが使えません（Safariのマイク許可を確認してください）');
+              }
+              statusText.textContent = '停止: ' + err;
+            } else if (err === 'audio-capture') {
+              userPaused = true;
+              running = false;
+              setStatus(false);
+              releaseWakeLock();
+              showMessage('マイク入力を取得できませんでした（他アプリが使用中か権限を確認してください）');
+              statusText.textContent = '停止: ' + err;
+            } else if (err === 'network') {
+              statusText.textContent = '通信再接続中... (network)';
+            } else if (err !== 'no-speech' && err !== 'aborted') {
+              statusText.textContent = '再試行中: ' + err;
             }
-            // それ以外のエラーは onend 側の自動再開に任せる
           };
 
           return rec;
@@ -392,19 +428,23 @@
 
         function startRecognition() {
           if (!supported || running) return;
-          if (!recognition) recognition = buildRecognition();
+          if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+          recognition = buildRecognition();
           try {
             recognition.start();
             running = true;
           } catch (e) {
-            // すでに開始済みなどの場合は次の onend で再開される
+            running = false;
+            recognition = null;
+            statusText.textContent = '開始失敗: ' + (e && e.message ? e.message : 'retry');
           }
         }
 
         function stopRecognition() {
           if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
-          if (recognition && running) {
+          if (recognition) {
             try { recognition.stop(); } catch (e) {}
+            recognition = null;
           }
           running = false;
         }
@@ -416,13 +456,28 @@
             startedOnce = true;
             setStatus(true);
             requestWakeLock();
-            startRecognition();
+            // ユーザー操作直後にまず同期でstartを試み、未許可ならgetUserMediaで許可取得後にstart
+            if (micPrimed || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+              startRecognition();
+            } else {
+              statusText.textContent = 'マイク確認中...';
+              ensureMicPermission().then(function () {
+                if (!userPaused) startRecognition();
+              }).catch(function (err) {
+                userPaused = true;
+                running = false;
+                setStatus(false);
+                releaseWakeLock();
+                var name = err && err.name ? err.name : 'PermissionError';
+                showMessage('マイク許可に失敗しました（' + name + '）。Safariのマイク設定を確認してください');
+                statusText.textContent = 'マイク拒否: ' + name;
+              });
+            }
           } else {
             userPaused = true;
             setStatus(false);
             releaseWakeLock();
             stopRecognition();
-            // 表示中の一文はそのまま固定する
           }
         });
 
